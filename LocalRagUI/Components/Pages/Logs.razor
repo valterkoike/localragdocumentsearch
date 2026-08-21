@@ -1,0 +1,81 @@
+﻿@page "/logs"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject HttpClient Http
+@implements IDisposable
+@using System.Threading
+
+<PageTitle>System Logs</PageTitle>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Live System Logs</h2>
+        <span class="badge bg-success">Live Connection Active</span>
+    </div>
+
+    <!-- Terminal UI -->
+    <div class="terminal-window p-3 rounded" style="background-color: #1e1e1e; color: #00ff00; height: 60vh; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.9rem;">
+        @if (logEntries == null)
+        {
+            <div>Connecting to log stream...</div>
+        }
+        else
+        {
+            @foreach (var log in logEntries)
+            {
+                <div style="border-bottom: 1px solid #333; padding: 4px 0;">@log</div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private List<string>? logEntries;
+    private PeriodicTimer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Start a background timer that ticks every 1 second
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        
+        // Fire and forget the polling loop
+        _ = PollLogsAsync();
+    }
+
+    private async Task PollLogsAsync()
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync())
+            {
+                var response = await Http.GetFromJsonAsync<LogResponse>("/api/logs");
+                if (response?.Logs != null)
+                {
+                    logEntries = response.Logs;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // cancellation when we leave the page
+        }
+        catch
+        {
+            // standard HTTP errors
+        }
+        await Task.CompletedTask;
+    }
+
+    // Helper class to match the JSON response from FastAPI
+    public class LogResponse
+    {
+        public List<string> Logs { get; set; } = new();
+    }
+    
+    public void Dispose()
+    {
+        // This destroys the timer the exact millisecond you switch pages,
+        // freeing up the thread and SignalR connection.
+        _timer?.Dispose();
+    }
+}

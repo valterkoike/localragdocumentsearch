@@ -1,0 +1,190 @@
+﻿@page "/knowledgebase"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject HttpClient Http
+
+<PageTitle>Manage Knowledge Base</PageTitle>
+
+<div class="container mt-4">
+    <h2>Manage Knowledge Base</h2>
+    <p class="text-muted">Manage the documents your Local AI uses to generate answers.</p>
+
+    <!-- Upload Section -->
+    <div class="card mb-4 shadow-sm border-primary">
+        <div class="card-body">
+            <h5 class="card-title text-primary">Add New Document</h5>
+            <div class="d-flex align-items-center gap-3 mt-3">
+                <InputFile OnChange="HandleFileUpload" class="form-control" accept=".pdf,.txt" />
+                @if (isProcessing)
+                {
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Processing...</span>
+                    </div>
+                }
+            </div>
+            @if (!string.IsNullOrEmpty(statusMessage))
+            {
+                <div class="text-success mt-2 small">@statusMessage</div>
+            }
+        </div>
+    </div>
+
+    <!-- Document List Section -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">Indexed Documents</h5>
+            @if (documents == null)
+            {
+                <p>Loading documents...</p>
+            }
+            else if (documents.Count == 0)
+            {
+                <p class="text-muted">No documents found. Upload one above.</p>
+            }
+            else
+            {
+                <table class="table table-hover mt-3">
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in documents)
+                        {
+                            <tr>
+                                <td class="align-middle">
+                                    <span class="bi bi-file-earmark-text me-2"></span>@doc
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteDocument(doc)" disabled="@isProcessing">
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<string>? documents;
+    private bool isProcessing = false;
+    private string statusMessage = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadDocuments();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<DocumentListResponse>("/api/documents");
+            if (response != null)
+            {
+                documents = response.Documents;
+            }
+        }
+        catch
+        {
+            documents = new List<string>(); // Fallback on error
+        }
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        isProcessing = true;
+        statusMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            var file = e.File;
+            if (file == null) return;
+
+            // 1. Open the stream from the browser
+            using var browserStream = file.OpenReadStream(maxAllowedSize: 1024 * 1024 * 50);
+            
+            // 2. Buffer it into a MemoryStream instantly
+            using var memoryStream = new MemoryStream();
+            await browserStream.CopyToAsync(memoryStream);
+            
+            // 3. Reset the memory stream position back to zero before reading it!
+            memoryStream.Position = 0;
+
+            using var content = new MultipartFormDataContent();
+            var fileContent = new StreamContent(memoryStream);
+            
+            var contentType = string.IsNullOrEmpty(file.ContentType) ? "application/octet-stream" : file.ContentType;
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+            
+            content.Add(fileContent, "file", file.Name);
+
+            // 4. Send the completely buffered memory stream to FastAPI
+            var response = await Http.PostAsync("/upload", content);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                statusMessage = $"Successfully ingested {file.Name}!";
+                await LoadDocuments();
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                statusMessage = $"Upload failed: {response.ReasonPhrase} ({errorContent})";
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"CRITICAL ERROR: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteDocument(string filename)
+    {
+        isProcessing = true;
+        statusMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            // Escape the filename to handle spaces in the URL
+            var encodedName = Uri.EscapeDataString(filename);
+            var response = await Http.DeleteAsync($"/api/documents/{encodedName}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                statusMessage = $"Deleted {filename}";
+                await LoadDocuments(); // Refresh the list
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Delete failed: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    public class DocumentListResponse
+    {
+        public List<string> Documents { get; set; } = new();
+    }
+}
