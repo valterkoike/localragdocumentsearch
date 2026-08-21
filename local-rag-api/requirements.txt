@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+python-multipart    # Required by FastAPI for UploadFile/File forms
+pypdf               # Required by LangChain's PyPDFLoader
+python-dotenv       # Required for .env configuration management
+langchain
+langchain-community
+langchain-ollama
+langchain-experimental
+langchain-text-splitters
+chromadb
+langchain-chroma
