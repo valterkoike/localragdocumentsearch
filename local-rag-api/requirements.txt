@@ -1,13 +1,57 @@
+# =========================================================
+# WEB FRAMEWORK & API SERVER
+# =========================================================
+# Modern, high-performance web framework used for the backend REST API
 fastapi
+
+# ASGI server implementation to run and serve the FastAPI application
 uvicorn
+
+# Data validation and settings management used for API request schemas (e.g., QueryRequest)
 pydantic
-python-multipart    # Required by FastAPI for UploadFile/File forms
-pypdf               # Required by LangChain's PyPDFLoader
-python-dotenv       # Required for .env configuration management
+
+# Required by FastAPI for handling multipart/form-data payloads (file uploads via UploadFile)
+python-multipart
+
+
+# =========================================================
+# CONFIGURATION & FILE PARSING
+# =========================================================
+# Reads key-value pairs from the .env file and sets them as environment variables
+python-dotenv
+
+# Pure-Python PDF parsing library used by LangChain's PyPDFLoader to extract document text
+pypdf
+
+
+# =========================================================
+# LANGCHAIN CORE & COMPONENT SUITE
+# =========================================================
+# Core LangChain package for orchestration, prompt templates, and LCEL chaining
 langchain
+
+# Community-maintained integrations, providing document loaders like PyPDFLoader and TextLoader
 langchain-community
-langchain-ollama
+
+# Advanced/experimental components, specifically providing the SemanticChunker
 langchain-experimental
+
+# Standard chunking and text-splitting interfaces used across LangChain workflows
 langchain-text-splitters
+
+
+# =========================================================
+# LOCAL LLM & EMBEDDINGS (OLLAMA)
+# =========================================================
+# Official integration for running local models (OllamaLLM, OllamaEmbeddings)
+langchain-ollama
+
+
+# =========================================================
+# VECTOR STORAGE & RETRIEVAL
+# =========================================================
+# Open-source embedded vector database for persisting document embeddings locally
 chromadb
+
+# Official LangChain partner integration package for interacting with ChromaDB
 langchain-chroma
